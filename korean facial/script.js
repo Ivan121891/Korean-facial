@@ -11,11 +11,10 @@
   const GHL_USER_ID     = "I4T6Q498xbtTptEBZkP8";
   const FB_PIXEL_ID     = "1178133073434960";
 
-  // GHL's hosted booking widget. We redirect here with prefilled query params
-  // so GHL's own page creates the appointment — the only contract that's
-  // stable from the client side without an API token.
-  const GHL_WIDGET_URL =
-    `https://api.leadconnectorhq.com/widget/booking/${GHL_CALENDAR_ID}`;
+  // GHL's public calendar-widget booking endpoint. Calendar ID goes in the
+  // path — same contract the LeadConnector iframe uses, no auth token required.
+  const GHL_BOOK_URL =
+    `https://backend.leadconnectorhq.com/appengine/appointment/${GHL_CALENDAR_ID}`;
 
   const MORNING_SLOTS = [
     { label: "9:00 AM",  hour: 9,  minute: 0 },
@@ -226,26 +225,77 @@
     btnLabel.textContent = "Booking";
     spinner.classList.remove("hidden");
 
+    submitBtn.disabled = true;
+    btnLabel.textContent = "Booking";
+    spinner.classList.remove("hidden");
+
     const start = new Date(selectedDate);
     start.setHours(selectedTime.hour, selectedTime.minute, 0, 0);
+    const end = new Date(start.getTime() + SERVICE_DURATION_MIN * 60000);
     const [firstName, ...rest] = name.split(/\s+/);
     const lastName = rest.join(" ");
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const slotIso = toIsoWithOffset(start);
 
-    track("Lead", { content_name: SERVICE_NAME });
-    track("Schedule", { content_name: SERVICE_NAME });
+    const ghlPayload = {
+      calendarId: GHL_CALENDAR_ID,
+      locationId: GHL_LOCATION_ID,
+      selectedTimezone: tz,
+      selectedSlot: slotIso,
+      startTime: slotIso,
+      endTime: toIsoWithOffset(end),
+      email: email,
+      phone: phone,
+      firstName: firstName || name,
+      lastName: lastName,
+      name: name,
+    };
 
-    const url = new URL(GHL_WIDGET_URL);
-    url.searchParams.set("selected_slot", toIsoWithOffset(start));
-    url.searchParams.set("selected_timezone", tz);
-    url.searchParams.set("first_name", firstName || name);
-    url.searchParams.set("last_name", lastName);
-    url.searchParams.set("name", name);
-    url.searchParams.set("email", email);
-    url.searchParams.set("phone", phone);
+    try {
+      const res = await fetch(GHL_BOOK_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Channel": "APP",
+          "Source": "calendar_page",
+          "Version": "2021-04-15",
+        },
+        body: JSON.stringify(ghlPayload),
+        mode: "cors",
+      });
 
-    btnLabel.textContent = "Redirecting";
-    window.location.assign(url.toString());
+      const raw = await res.text();
+      let body = null;
+      try { body = raw ? JSON.parse(raw) : null; } catch (_) {}
+
+      if (!res.ok) {
+        console.error("GHL booking failed", { status: res.status, body: body || raw });
+        const detail = (body && (body.message || body.error || body.msg)) || "";
+        errorText.textContent =
+          detail || `Booking failed (${res.status}). Please try again or call us.`;
+        errorText.classList.remove("hidden");
+        return;
+      }
+
+      track("Lead", { content_name: SERVICE_NAME });
+      track("Schedule", { content_name: SERVICE_NAME });
+
+      renderConfirmation({
+        service: SERVICE_NAME,
+        name, email, phone,
+        time: selectedTime.label,
+      });
+      showStep("confirmed");
+    } catch (err) {
+      console.error("GHL booking network error", err);
+      errorText.textContent =
+        "Couldn't reach the booking server. Please check your connection and try again.";
+      errorText.classList.remove("hidden");
+    } finally {
+      submitBtn.disabled = false;
+      btnLabel.textContent = "Schedule Appointment";
+      spinner.classList.add("hidden");
+    }
   });
 
   // ------- Confirmation rendering -------
