@@ -73,32 +73,48 @@ module.exports = async (req, res) => {
   }
 
   // 2) Create the appointment on the calendar.
+  const apptPayload = {
+    calendarId:               CALENDAR_ID,
+    locationId:               LOCATION_ID,
+    contactId,
+    assignedUserId:           ASSIGNED_USER_ID,
+    startTime,
+    endTime,
+    selectedTimezone,
+    title:                    name ? `${SERVICE_NAME} — ${name}` : SERVICE_NAME,
+    appointmentStatus:        "confirmed",
+    ignoreDateRange:          true,
+    ignoreFreeSlotValidation: true,
+    toNotify:                 true,
+  };
   try {
     const r = await fetch(`${GHL_API_BASE}/calendars/events/appointments`, {
       method: "POST",
       headers: { ...authHeaders, "Version": "2021-04-15" },
-      body: JSON.stringify({
-        calendarId:        CALENDAR_ID,
-        locationId:        LOCATION_ID,
-        contactId,
-        assignedUserId:    ASSIGNED_USER_ID,
-        startTime,
-        endTime,
-        selectedTimezone,
-        title:             name ? `${SERVICE_NAME} — ${name}` : SERVICE_NAME,
-        appointmentStatus: "confirmed",
-      }),
+      body: JSON.stringify(apptPayload),
     });
-    const data = await r.json().catch(() => null);
+    const raw = await r.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch (_) {}
+    console.log("appointment create response", {
+      status: r.status,
+      payload: apptPayload,
+      body: data || raw,
+    });
     if (!r.ok) {
-      console.error("appointment create failed", r.status, data);
-      res.status(502).json({ error: "Could not create appointment", detail: data });
+      res.status(502).json({
+        error: "Could not create appointment",
+        status: r.status,
+        sent: apptPayload,
+        detail: data || raw,
+      });
       return;
     }
     res.status(200).json({
       ok: true,
       contactId,
       appointmentId: data?.id || data?.appointment?.id || null,
+      ghlResponse: data,
     });
   } catch (err) {
     console.error("appointment create threw", err);
