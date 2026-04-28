@@ -4,6 +4,9 @@
   // ------- Configuration -------
   const SERVICE_NAME = "Korean Facial Treatment";
   const SERVICE_DURATION_MIN = 60;
+  // Salon is at 22554 Ventura Blvd, Woodland Hills CA. Slots displayed and
+  // sent to GHL are this wall-clock time, regardless of customer location.
+  const BUSINESS_TZ = "America/Los_Angeles";
 
   // Same-origin Vercel function — see api/book.js. It calls the GHL API
   // server-side with a Private Integration token so the appointment lands
@@ -65,15 +68,41 @@
     return x;
   }
   function pad(n) { return String(n).padStart(2, "0"); }
-  // Local ISO 8601 with timezone offset, e.g. 2026-04-30T09:00:00-07:00.
-  // GHL's booking widget expects the selected slot in this format, not UTC "Z".
-  function toIsoWithOffset(d) {
-    const off = -d.getTimezoneOffset();
+
+  // Minutes that `tz` is ahead of UTC at the given moment. Handles DST.
+  function offsetMinutesForTz(date, tz) {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hourCycle: "h23",
+    });
+    const parts = dtf.formatToParts(date);
+    const get = (t) => parseInt(parts.find((p) => p.type === t).value, 10);
+    const asUtc = Date.UTC(
+      get("year"), get("month") - 1, get("day"),
+      get("hour"), get("minute"), get("second"),
+    );
+    return Math.round((asUtc - date.getTime()) / 60000);
+  }
+
+  // Convert a wall-clock time in `tz` to the Date (absolute UTC moment).
+  function dateFromWallTime(year, month, day, hour, minute, tz) {
+    const approx = new Date(Date.UTC(year, month, day, hour, minute));
+    const off = offsetMinutesForTz(approx, tz);
+    return new Date(approx.getTime() - off * 60000);
+  }
+
+  // ISO 8601 with the offset of `tz`, e.g. 2026-04-30T09:00:00-07:00.
+  // GHL expects the slot in this format, not UTC "Z".
+  function isoInTz(date, tz) {
+    const off = offsetMinutesForTz(date, tz);
+    const wall = new Date(date.getTime() + off * 60000);
     const sign = off >= 0 ? "+" : "-";
     const abs = Math.abs(off);
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` +
-           `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
-           `${sign}${pad(Math.floor(abs/60))}:${pad(abs%60)}`;
+    return `${wall.getUTCFullYear()}-${pad(wall.getUTCMonth() + 1)}-${pad(wall.getUTCDate())}` +
+           `T${pad(wall.getUTCHours())}:${pad(wall.getUTCMinutes())}:${pad(wall.getUTCSeconds())}` +
+           `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
   }
   function sameDay(a, b) {
     return a && b &&
@@ -223,13 +252,13 @@
     btnLabel.textContent = "Booking";
     spinner.classList.remove("hidden");
 
-    const start = new Date(selectedDate);
-    start.setHours(selectedTime.hour, selectedTime.minute, 0, 0);
+    const start = dateFromWallTime(
+      selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(),
+      selectedTime.hour, selectedTime.minute, BUSINESS_TZ,
+    );
     const end = new Date(start.getTime() + SERVICE_DURATION_MIN * 60000);
     const [firstName, ...rest] = name.split(/\s+/);
     const lastName = rest.join(" ");
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    const slotIso = toIsoWithOffset(start);
 
     const payload = {
       firstName: firstName || name,
@@ -237,9 +266,9 @@
       name,
       email,
       phone,
-      startTime: slotIso,
-      endTime: toIsoWithOffset(end),
-      selectedTimezone: tz,
+      startTime: isoInTz(start, BUSINESS_TZ),
+      endTime:   isoInTz(end,   BUSINESS_TZ),
+      selectedTimezone: BUSINESS_TZ,
     };
 
     try {
@@ -298,8 +327,10 @@
   }
 
   function buildGCalUrl(p) {
-    const start = new Date(selectedDate);
-    start.setHours(selectedTime.hour, selectedTime.minute, 0, 0);
+    const start = dateFromWallTime(
+      selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(),
+      selectedTime.hour, selectedTime.minute, BUSINESS_TZ,
+    );
     const end = new Date(start.getTime() + SERVICE_DURATION_MIN * 60000);
     const fmt = (d) =>
       d.getUTCFullYear() +
