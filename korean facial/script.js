@@ -5,16 +5,10 @@
   const SERVICE_NAME = "Korean Facial Treatment";
   const SERVICE_DURATION_MIN = 60;
 
-  // GoHighLevel / LeadConnector identifiers
-  const GHL_LOCATION_ID = "ctTbUc9SRPDOjYpRK3CU";
-  const GHL_CALENDAR_ID = "8lVOsnGOaESPJr5sYSQH";
-  const GHL_USER_ID     = "I4T6Q498xbtTptEBZkP8";
-  const FB_PIXEL_ID     = "1178133073434960";
-
-  // LeadConnector inbound webhook — fires a GHL workflow that creates the
-  // contact and books the appointment server-side.
-  const GHL_BOOK_URL =
-    "https://services.leadconnectorhq.com/hooks/ctTbUc9SRPDOjYpRK3CU/webhook-trigger/ff4d6c44-acf4-430f-80e2-6c34db9cbf8a";
+  // Same-origin Vercel function — see api/book.js. It calls the GHL API
+  // server-side with a Private Integration token so the appointment lands
+  // on the calendar's appointment list.
+  const BOOK_URL = "/api/book";
 
   const MORNING_SLOTS = [
     { label: "9:00 AM",  hour: 9,  minute: 0 },
@@ -237,26 +231,22 @@
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
     const slotIso = toIsoWithOffset(start);
 
-    const ghlPayload = {
-      calendarId: GHL_CALENDAR_ID,
-      locationId: GHL_LOCATION_ID,
-      selectedTimezone: tz,
-      selectedSlot: slotIso,
+    const payload = {
+      firstName: firstName || name,
+      lastName,
+      name,
+      email,
+      phone,
       startTime: slotIso,
       endTime: toIsoWithOffset(end),
-      email: email,
-      phone: phone,
-      firstName: firstName || name,
-      lastName: lastName,
-      name: name,
+      selectedTimezone: tz,
     };
 
     try {
-      const res = await fetch(GHL_BOOK_URL, {
+      const res = await fetch(BOOK_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(ghlPayload),
-        mode: "cors",
+        body: JSON.stringify(payload),
       });
 
       const raw = await res.text();
@@ -264,8 +254,9 @@
       try { body = raw ? JSON.parse(raw) : null; } catch (_) {}
 
       if (!res.ok) {
-        console.error("GHL booking failed", { status: res.status, body: body || raw });
-        const detail = (body && (body.message || body.error || body.msg)) || "";
+        console.error("Booking failed", { status: res.status, body: body || raw });
+        const detail =
+          (body && (body.error || body.message || body.msg)) || "";
         errorText.textContent =
           detail || `Booking failed (${res.status}). Please try again or call us.`;
         errorText.classList.remove("hidden");
