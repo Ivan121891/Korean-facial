@@ -11,7 +11,8 @@
   const GHL_USER_ID     = "I4T6Q498xbtTptEBZkP8";
   const FB_PIXEL_ID     = "1178133073434960";
 
-  // Public booking endpoint used by GHL's calendar widget.
+  // Public booking endpoint used by GHL's calendar widget (no auth token —
+  // safe to call from client. Same endpoint the LeadConnector iframe hits).
   const GHL_BOOK_URL =
     `https://backend.leadconnectorhq.com/appengine/appointment`;
 
@@ -70,6 +71,16 @@
     return x;
   }
   function pad(n) { return String(n).padStart(2, "0"); }
+  // Local ISO 8601 with timezone offset, e.g. 2026-04-30T09:00:00-07:00.
+  // GHL's booking widget expects the selected slot in this format, not UTC "Z".
+  function toIsoWithOffset(d) {
+    const off = -d.getTimezoneOffset();
+    const sign = off >= 0 ? "+" : "-";
+    const abs = Math.abs(off);
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` +
+           `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
+           `${sign}${pad(Math.floor(abs/60))}:${pad(abs%60)}`;
+  }
   function sameDay(a, b) {
     return a && b &&
       a.getFullYear() === b.getFullYear() &&
@@ -216,43 +227,58 @@
 
     const start = new Date(selectedDate);
     start.setHours(selectedTime.hour, selectedTime.minute, 0, 0);
-    const end = new Date(start.getTime() + SERVICE_DURATION_MIN * 60000);
     const [firstName, ...rest] = name.split(/\s+/);
     const lastName = rest.join(" ");
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
-    const payload = {
-      name, email, phone,
-      service: SERVICE_NAME,
-      date: `${selectedDate.getFullYear()}-${pad(selectedDate.getMonth()+1)}-${pad(selectedDate.getDate())}`,
-      time: selectedTime.label,
-      // GoHighLevel / LeadConnector booking fields
-      locationId: GHL_LOCATION_ID,
+    // Payload shape matches GHL's public calendar widget request.
+    const ghlPayload = {
       calendarId: GHL_CALENDAR_ID,
-      userId: GHL_USER_ID,
-      first_name: firstName || name,
-      last_name:  lastName,
-      selected_slot: start.toISOString(),
-      selected_timezone: tz,
-      start_time: start.toISOString(),
-      end_time:   end.toISOString(),
+      locationId: GHL_LOCATION_ID,
+      selectedTimezone: tz,
+      selectedSlot: toIsoWithOffset(start),
+      firstName: firstName || name,
+      lastName: lastName,
+      name: name,
+      email: email,
+      phone: phone,
     };
 
     try {
-      try {
-        await fetch(GHL_BOOK_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          mode: "cors",
-        });
-      } catch (_) { /* ignore network errors in static preview */ }
+      const res = await fetch(GHL_BOOK_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Channel": "APP",
+          "Source": "calendar_page",
+          "Version": "2021-04-15",
+        },
+        body: JSON.stringify(ghlPayload),
+        mode: "cors",
+      });
+
+      if (!res.ok) {
+        let detail = "";
+        try { detail = (await res.json()).message || ""; } catch (_) {}
+        errorText.textContent =
+          detail || `Booking failed (${res.status}). Please try again or call us.`;
+        errorText.classList.remove("hidden");
+        return;
+      }
 
       track("Lead", { content_name: SERVICE_NAME });
       track("Schedule", { content_name: SERVICE_NAME });
 
-      renderConfirmation(payload);
+      renderConfirmation({
+        service: SERVICE_NAME,
+        name, email, phone,
+        time: selectedTime.label,
+      });
       showStep("confirmed");
+    } catch (err) {
+      errorText.textContent =
+        "Couldn't reach the booking server. Please check your connection and try again.";
+      errorText.classList.remove("hidden");
     } finally {
       submitBtn.disabled = false;
       btnLabel.textContent = "Schedule Appointment";
