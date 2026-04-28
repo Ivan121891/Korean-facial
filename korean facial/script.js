@@ -11,10 +11,10 @@
   const GHL_USER_ID     = "I4T6Q498xbtTptEBZkP8";
   const FB_PIXEL_ID     = "1178133073434960";
 
-  // GHL's public calendar-widget booking endpoint. Calendar ID goes in the
-  // path — same contract the LeadConnector iframe uses, no auth token required.
+  // LeadConnector inbound webhook — fires a GHL workflow that creates the
+  // contact and books the appointment server-side.
   const GHL_BOOK_URL =
-    `https://backend.leadconnectorhq.com/appengine/appointment/${GHL_CALENDAR_ID}`;
+    "https://services.leadconnectorhq.com/hooks/ctTbUc9SRPDOjYpRK3CU/webhook-trigger/e4ed4f65-426f-4a8b-9e3e-d04d3fed4b27";
 
   const MORNING_SLOTS = [
     { label: "9:00 AM",  hour: 9,  minute: 0 },
@@ -254,12 +254,7 @@
     try {
       const res = await fetch(GHL_BOOK_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Channel": "APP",
-          "Source": "calendar_page",
-          "Version": "2021-04-15",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(ghlPayload),
         mode: "cors",
       });
