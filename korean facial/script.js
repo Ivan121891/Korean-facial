@@ -14,7 +14,7 @@
   // LeadConnector inbound webhook — fires a GHL workflow that creates the
   // contact and books the appointment server-side.
   const GHL_BOOK_URL =
-    "https://services.leadconnectorhq.com/hooks/ctTbUc9SRPDOjYpRK3CU/webhook-trigger/e4ed4f65-426f-4a8b-9e3e-d04d3fed4b27";
+    "https://services.leadconnectorhq.com/hooks/ctTbUc9SRPDOjYpRK3CU/webhook-trigger/ff4d6c44-acf4-430f-80e2-6c34db9cbf8a";
 
   const MORNING_SLOTS = [
     { label: "9:00 AM",  hour: 9,  minute: 0 },
