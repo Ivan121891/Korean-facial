@@ -6,6 +6,7 @@
 const GHL_API_BASE = "https://services.leadconnectorhq.com";
 const LOCATION_ID  = "ctTbUc9SRPDOjYpRK3CU";
 const CALENDAR_ID  = "8lVOsnGOaESPJr5sYSQH";
+const ASSIGNED_USER_ID = "I4T6Q498xbtTptEBZkP8";
 const SERVICE_NAME = "Korean Facial Treatment";
 
 module.exports = async (req, res) => {
@@ -80,6 +81,7 @@ module.exports = async (req, res) => {
         calendarId:        CALENDAR_ID,
         locationId:        LOCATION_ID,
         contactId,
+        assignedUserId:    ASSIGNED_USER_ID,
         startTime,
         endTime,
         selectedTimezone,
