@@ -85,30 +85,11 @@ body {
 }
 .subtitle.center { text-align: center; }
 
-/* Month nav */
-.month-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-.icon-btn {
-  background: transparent;
-  border: 0;
-  padding: 4px;
-  color: var(--foreground);
-  cursor: pointer;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.icon-btn:hover { background: var(--muted); }
-.icon-btn:disabled { opacity: .35; cursor: not-allowed; }
-.month-label {
-  font-size: .875rem;
-  font-weight: 400;
-  color: var(--foreground);
+.address {
+  margin: 24px 0 0 0;
+  font-size: .8125rem;
+  color: var(--muted-foreground);
+  text-align: center;
 }
 
 /* Sections */

@@ -24,18 +24,12 @@
     { label: "4:45 PM",  hour: 16, minute: 45 },
   ];
 
-  const MONTHS = [
-    "January","February","March","April","May","June",
-    "July","August","September","October","November","December",
-  ];
   const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
   const STEPS = ["date", "time", "details", "confirmed"];
 
   // ------- State -------
   const today = startOfDay(new Date());
-  let viewMonth = today.getMonth();
-  let viewYear = today.getFullYear();
   let selectedDate = null;
   let selectedTime = null;
 
@@ -44,9 +38,6 @@
   const dateGrid = $("date-grid");
   const morningGrid = $("morning-grid");
   const afternoonGrid = $("afternoon-grid");
-  const monthLabel = $("month-label");
-  const prevMonthBtn = $("prev-month");
-  const nextMonthBtn = $("next-month");
 
   const timeSummary    = $("time-summary");
   const detailsSummary = $("details-summary");
@@ -108,7 +99,6 @@
       a.getMonth() === b.getMonth() &&
       a.getDate() === b.getDate();
   }
-  function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
   function formatLongDate(d) {
     return d.toLocaleDateString(undefined, {
       weekday: "long", month: "long", day: "numeric", year: "numeric",
@@ -126,17 +116,10 @@
 
   // ------- Calendar render -------
   function renderMonth() {
-    monthLabel.textContent = `${MONTHS[viewMonth]} ${viewYear}`;
-
-    const firstViewDay = new Date(viewYear, viewMonth, 1);
-    const lastViewDay  = new Date(viewYear, viewMonth, daysInMonth(viewYear, viewMonth));
-    prevMonthBtn.disabled = lastViewDay < today;
-
     dateGrid.innerHTML = "";
 
-    const start = firstViewDay < today ? new Date(today) : firstViewDay;
     const cells = [];
-    const cursor = new Date(start);
+    const cursor = new Date(today);
     for (let i = 0; i < 6; i++) {
       cells.push(new Date(cursor));
       cursor.setDate(cursor.getDate() + 1);
@@ -146,8 +129,6 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "date-cell";
-      const past = d < today;
-      if (past) btn.classList.add("disabled");
       if (sameDay(d, selectedDate)) btn.classList.add("selected");
 
       const dow = document.createElement("span");
@@ -161,7 +142,7 @@
       btn.appendChild(dow);
       btn.appendChild(day);
 
-      if (!past) btn.addEventListener("click", () => selectDate(d));
+      btn.addEventListener("click", () => selectDate(d));
       dateGrid.appendChild(btn);
     });
   }
@@ -212,19 +193,6 @@
   // ------- Back buttons -------
   document.querySelectorAll(".back-btn").forEach((btn) => {
     btn.addEventListener("click", () => showStep(btn.dataset.back));
-  });
-
-  // ------- Month nav -------
-  prevMonthBtn.addEventListener("click", () => {
-    if (prevMonthBtn.disabled) return;
-    viewMonth -= 1;
-    if (viewMonth < 0) { viewMonth = 11; viewYear -= 1; }
-    renderMonth();
-  });
-  nextMonthBtn.addEventListener("click", () => {
-    viewMonth += 1;
-    if (viewMonth > 11) { viewMonth = 0; viewYear += 1; }
-    renderMonth();
   });
 
   // ------- Form submit -------
@@ -356,8 +324,6 @@
   resetBtn.addEventListener("click", () => {
     selectedDate = null;
     selectedTime = null;
-    viewMonth = today.getMonth();
-    viewYear  = today.getFullYear();
     detailsForm.reset();
     renderMonth();
     showStep("date");
